@@ -1,0 +1,93 @@
+#!/bin/sh
+#
+#
+#  1994 (c) Regents of McGill University, School of Computer Science.
+#           by Luc Boulianne (lucb@cs.mcgill.ca)
+#
+
+usage () {
+	cat - <<EOC
+
+Usage: $0 [-h] [-v] files.[0-9]
+
+Interactively, unrotate a group of files in the current directory. You must
+supply only one copy of the filename group you want to unrotate. If you
+don't, a set of files will be unrotated twice.
+
+Options:
+	[-v] set debugging on
+	[-h] this help info
+
+EOC
+
+	exit 2
+}
+
+# parse the command line arguments:
+#
+if [ $# -gt 0 ] ; then
+  case $1 in
+    -v) debug="y" ; shift;;
+    -h) usage;;			# call the usage funtion
+    -*)				# Catch anything that doesn't match the 
+				# previous flags
+    	echo "Unknown option [$1]";
+	usage;;
+  esac
+fi
+
+MV=/bin/mv
+TAR=tar
+GZIP=gzip
+MIDX=9;
+
+# For solaris ...
+PATH=/usr/ucb:$PATH
+
+index() 
+{
+        i=1;
+        while [ $i -le ${1:-$MIDX} ] ; do
+                echo -n "$i ";
+                i=`expr $i + 1`;
+        done
+}
+
+rindex() 
+{
+        i=${1:-$MIDX};
+        while [ $i -gt 0 ] ; do
+                echo -n "$i ";
+                i=`expr $i - 1`;
+        done
+}
+
+unrotate()
+{
+        fn=$1;shift;
+
+        test -f $fn && $MV -f $fn $fn.new && echo $MV -f $fn $fn.new
+        test -f $fn.0 && $MV -f $fn.0 $fn && echo $MV -f $fn.0 $fn
+        for n in $* ; do
+	   echo [$n]
+           dest=$fn.`expr $n - 1`
+           src=$fn.$n
+           test -f $src && $MV -f $src $dest && echo $MV -f $src $dest
+        done
+}
+
+idx=`index`;
+
+if [ x${debug:-x} = yx ] ; then
+	set -x;
+fi
+
+for i do
+	file=`echo $i | sed 's/\.[0-9]$//'`
+	echo ${file}*
+	echo -n "Proceed with the unrotation of the [${file}*] group of files? [n] "
+	read ans
+	if [ x$ans = xy ] ; then	
+	        unrotate $file $idx && echo "Unrotated files ${file}*"
+	fi
+done

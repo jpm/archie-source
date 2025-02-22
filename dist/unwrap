@@ -1,0 +1,230 @@
+#!/bin/csh
+#
+#  1994 (c) Bunyip Information Systems, Inc.
+#           by Luc Boulianne (lucb@bunyip.com)
+#
+# For solaris ...
+set path=(/usr/ucb $path)
+#
+set VERS=3.5
+set ARCHIE=archie
+set ARCHHOME=~archie
+set basedone=0
+
+set id=`id | sed 's/(.*$//' | sed 's/^.*=//'`; 
+if ( $id != 0 ) then 
+	echo "You must be running as superuser to install archie"; 
+	exit 2;
+endif
+
+(echo $ARCHHOME > /dev/null)
+
+if ($status == 1) then
+	cat - <<EOC
+
+	Unable to find archie's home directory. You must have an archie home
+	directory to successfully use this script. Please create one now.
+	Refer to the System Manual for additional instructions.
+
+EOC
+	exit
+endif
+
+cat - <<EOC
+
+                              archie $VERS
+			
+This \`unwrap' script is an elementary tool for upgrading to or installing
+your archie $VERS distribution. You need to have gzip installed in your
+system. If you do not have it you may get the source through anonymous ftp
+from ftp.bunyip.com in the directory /pub/gnu.  The script will proceed in 
+two phases:
+
+	Phase 1:  will search for any distribution (*.tgz) files. If any are
+		  found, it will try to unpack them in the current archie
+		  home directory. Currently there are two distribution
+		  files, and you will be prompted before any are unpacked.
+
+		  For an upgrade, care will be taken to move aside any files
+		  this script is about to overwrite, by rotating these files
+		  (ie:  \`file-a' becomes \`file-a.0', etc. Should any mishap
+		  occur, the script \`unrotate' has been provided to assist
+		  you in recovering rotated files.
+		  
+	Phase 2:  will proceed to install an empty archie database. The
+		  script will try to determine if you already have such a
+		  database. Again, you will be prompted before proceeding.
+
+
+EOC
+
+echo -n "Proceed? [n] "
+set ans="$<"
+if ( $ans != "y" ) then
+	echo "Not proceeding"
+	exit
+endif
+
+set ARCH=`uname -s | tr '[A-Z]' '[a-z]'`
+
+set dirname=`dirname $0`
+
+switch ($ARCH)
+   case sunos:
+	if ( `uname -r` == 5.4 ) then
+		set REL=5.4
+	endif 
+	if ( `uname -r` == 5.5.1 ) then
+		set REL=5.4
+	endif 
+	if ( `uname -r` == 4.1.4 ) then
+		set REL=4.1.4
+	endif
+	breaksw
+   case aix:
+	set REL=3.2
+	breaksw
+endsw
+
+
+echo "Phase 1: Unpacking the distribution"
+set name=archie-${VERS}-base.tgz
+	echo -n "Looking for the distribution file [$name] ..."
+	if ( -f $name ) then
+		echo "found it."
+		if ( -e $ARCHHOME/help ) then
+			cat - <<EOC1
+
+	It looks like you already have an archie system in ~$ARCHIE. This
+	probably means you want to upgrade your system. The 3.3 upgrade only
+	requires that you upgrade your binary files along with a few
+	miscellaneous files. The \`archie-${VERS}-${ARCH}-${REL}.tgz'
+	distribution file contains all you require.
+EOC1
+			if ( $ARCH != "aix") then
+				cat - <<EOC2
+
+	You probably don't need to install this \`base' distribution file.
+
+	If you still want to proceed with the installation of this base
+	distribution, then we strongly suggest that you abort this script,
+	set the \`archie' home directory in a new location and re-run this
+	script.
+
+EOC2
+			else
+				cat - <<EOC3
+
+	However, on the AIX platform, which you are running on, you will
+	need to install this \`base' distribution file along with the
+	\`binaries' distribution file. We STRONGLY suggest that you ABORT
+	this script, set the \`archie' home directory to a new, empty
+	location and re-run this script.
+
+EOC3
+			endif
+			echo -n "Abort this script now [y] "
+			set ans="$<"
+			if ( $ans != "n" ) then
+				echo "Aborting."
+				exit
+			endif
+		endif
+		echo -n "Proceed with installation of base distribution? [n] "
+		set ans="$<"
+		if ( $ans != "y" ) then
+			echo "Not Proceeding."
+		else
+			echo "Untar proceeding..."
+			echo "$dirname/untar -d $ARCHHOME $name"
+			$dirname/untar -d $ARCHHOME $name
+			set basedone=1
+		endif
+	else
+		echo "not found."
+	endif
+
+set name=archie-${VERS}-${ARCH}-${REL}-A.tgz
+	echo -n "Looking for the distribution file [$name] ..."
+	if ( -f $name ) then
+		echo "found it."
+		echo -n "Untar ${name}? [n] " 
+		set ans="$<"
+		if ( $ans != "y" ) then
+			echo "Not untarring."
+		else
+			echo "Untar proceeding..."
+			echo "$dirname/untar -d $ARCHHOME $name"
+			$dirname/untar -d $ARCHHOME $name
+		endif
+	else
+		echo "not found."
+	endif
+
+set name=archie-${VERS}-${ARCH}-${REL}-B.tgz
+	echo -n "Looking for the distribution file [$name] ..."
+	if ( -f $name ) then
+		echo "found it."
+		echo -n "Untar ${name}? [n] " 
+		set ans="$<"
+		if ( $ans != "y" ) then
+			echo "Not untarring."
+		else
+			echo "Untar proceeding..."
+			echo "$dirname/untar -d $ARCHHOME $name"
+			$dirname/untar -d $ARCHHOME $name
+		endif
+	else
+		echo "not found."
+	endif
+echo "Phase 1: done."
+
+
+echo ""
+set dbtar=$ARCHHOME/tmp/db.tar
+set dbdir=$ARCHHOME/db
+set dbtst=$ARCHHOME/db/host_db/host-db.pag 
+
+if (( $basedone == 1 ) && ( -e $dbtar )) then
+	echo "Phase 2: Installation of a EMPTY archie database."
+	echo "[Making sure there is not one there already.]"
+	echo "[Looking for ~$ARCHIE/db and ~$ARCHIE/db/host_db/host-db.pag...]"
+	if ( -e $ARCHHOME/db && -e $dbtst ) then
+		echo "It seems you might have an archie database..."
+		if ( -z $dbtst ) then
+			echo "It seems you have an empty archie hosts database"
+			echo "CAUTION: I could be wrong. Answering 'y' will"
+			echo ' destroy any archie database you might have had.'
+		else
+			echo "It seems you have an active archie hosts database"
+			echo "WARNING: answering 'y' will DESTROY it"
+		endif
+	else
+		echo "It seems that you don't have an archie database"
+	endif
+	echo -n "Should I proceed with the installation of an EMPTY archie database? [n] "
+	set ans="$<"
+	if ( $ans != "y") then
+		echo "Not proceeding."
+	else
+		cd $ARCHHOME
+		echo "These are the files that I will be installing:"
+		tar tvf tmp/db.tar
+		echo -n "Are you really sure you want to proceed? [n] "
+		set ans="$<"
+		if ( $ans == "y") then
+			echo "OK. Here we go."
+			tar xvpf tmp/db.tar
+		else
+			echo -n "That was close [y/n] "
+			set ans="$<"
+			echo "=:-)"
+		endif
+	endif
+	echo "Phase 2: done."
+endif
+echo ""
+echo "Don't forget to configure your setup, ie: type:"
+echo ""
+echo "    	cd ~$ARCHIE/config; make"
+echo ""

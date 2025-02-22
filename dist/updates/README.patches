@@ -1,0 +1,310 @@
+
+				Archie 3.5
+				==========
+
+
+This patch can be applied  to your system by downloading the file
+archie-update-3.5-arch-3.tgz
+
+Run ./untar archie-update-3.5-arch-3.tgz to install it.
+
+arch being either sunos-4.1.4, sunos-5.4 or aix-3.2.
+
+
+
+Patch Level 5                                    Thu Jan 23 21:38:50 EST 1997
+=============
+
+
+
+The patch level 5 includes a significant number of changes. The main reason is
+that a bug or more precisely a limitation of the ndbm library forced us to
+change the format of the supporting databases.  We had to create the necessary
+conversion tools in order to preserve the existing databases.  Archie and all
+the appropriate executables present in this release now use the berkeley DB
+library, unless specified by the extension _ndbm.
+
+
+The other improvements that this patch brings to the Archie system are 
+
+	- telnet-client does not communicate with the Prospero server 
+	  anymore but instead accesses directly the datbase. This will
+	  allow better response time for systems with multiple cpus.
+	  Note that since the email-client uses the telnet-client, 
+	  email requests will therefore not use the Prospero server.
+
+	  The request will be logged to logs/query.log and logs/email.log 
+          for the telnet-client and the email-client respectively.
+
+	- the cgi-client program can now handle boolean searches.
+	  The behavior of the search is a bit different depending 
+	  on the searched database.  
+
+	  For example, for the anonymous ftp the multiple elements of 
+	  the search query will be used to find a filename that contains
+	  them.  A regular expression search could be used instead.
+	  It is not yet obvious which would be faster to execute as it
+	  depends on the frequecy of each substring.
+
+	- A statistical visualisation package has been written to display
+	  search information to the Archie users through the generation of 
+	  HTML pages. This packages can be extended for Archie adminstrators.
+
+        - When indexing WWW sites, retrieve_webindex will not try to
+          retrieve all the urls found at that site, it was taking too
+          much  time to perform. Instead, 100 urls are retrieved at
+          a time. This can be modified by using the -N switch on
+          arcontrol. Partial retrieves,parses and updates are now
+          done. Significant improvements should be seen with this patch.
+
+        - Many other fixes are present in this patch. To list a few..
+    
+        - filter_anonftp_unix_bsd takes of more broken listings.
+
+        - arexchange/arserver should timeout less often. A subtle
+          modification to the program allow better initial TCP
+          handshakes to happen on overloaded connections.
+
+        - parse_webindex more robust.
+
+        - better handling of www sites in host_db with extern_urls
+
+
+
+APPLYING THE PATCH      
+==================
+
+
+        Please read the following BEFORE trying to apply the patch.  The good
+state of your database depends on it :)
+
+        NO updates can occur during the following steps.
+        Searches can still be performed.
+
+        If you are installing on a new machine were no current Archie
+        system is running please go to the section
+        APPLYING THE PATCH ON A FRESH SYSTEM
+
+host> cd ~archie
+host> ./untar archie-update-3.5-sunos-4.1.4-5.tgz
+
+
+        At this point you will have a file patch.tgz in your bin directory
+        and a set of tools to do the conversion from ndbm to db
+
+host> bin/ardomains                             #build domain file
+host> bin/dump_hostdb_ndbm -o tmp/hostdb.out    #dump host_db
+host> bin/restore_hostdb -i tmp/hostdb.out      #create new hostdb
+
+        If you look in ~archie/db/host_db you will see some .db files.
+        We are now ready to rebuild the start_db database of each
+        database (anonftp_db and webindex_db)
+
+        No updates can be done while the next steps are performed !
+        Wait until all updates are finished.
+        The fix_start_db process can be run at the same time, as
+        shown below. They may take quite some time to run.
+
+host> touch etc/process.stop
+host> fix_start_db -d webindex -L tmp/web.log &
+host> fix_start_db -d anonftp -L tmp/ftp.log &
+
+        After the fix_start_db ran successfully. No files should
+        be present in ~archie/db/locks You can proceed.
+
+
+host> ./untar bin/patch.tgz
+host> cd config
+host> make                                      # As root
+host> rm etc/process.stop
+
+        At this point you have applied the patch and all updates and
+searches will be run using the new Berkeley DB files.
+
+
+APPLYING THE PATCH ON A FRESH SYSTEM
+====================================
+
+
+        A lot less work is required in this case. Simply install the
+system as usual :)
+
+
+STATISTICS
+==========
+
+
+        We have written a few programs that are called by daily.admin
+to process the log files and extract a certain amount of information.
+This information can then be presented to the users via HTML pages.
+You may take a look at the stats package at
+http://archie.bunyip.com/archstats.html before installing it on your
+system.
+
+        Basically this package can be used in two ways, either while
+using HTML tables, making the transfered documents quite big, or by using
+pregenerated gif files. In order to generate the gif files, you will need
+to have Perl 5 installed on your system and the GD extension module library.
+
+
+Steps to setting up the package:
+--------------------------------
+
+  - Go through the file archie-include.pl and do the necessary
+    configurations.  These configurations are necessary to both the
+    management tools and the CGI scripts that display the statistics.
+
+  - Verify that the file archie-include.pl accompanies the rest of the
+    perl scripts (in the same path). It also has to coexist with
+    archie-stats-cgi.pl which will be placed in the CGI directory of
+    your Web tree.
+
+  - For the daily management routines introduce some lines to Archie's
+    crontab as follows:
+
+    5  0 * * * /archie/scripts/daily.admin
+    5  1 * * 1 /archie/scripts/archie-periodical-stats.pl -w -D -p /archie/stats -P /archie/stats
+    5  1 1 * * /archie/scripts/archie-periodical-stats.pl -m -D -p /archie/stats -P /archie/stats
+
+
+  - For the statistical viewing scripts, place archie-stats-cgi.pl
+    (along with archie-include.pl as a symbolic link) in the cgi-bin
+    directory of the http server you are running on the Archie machine.
+    Read note [1].
+
+  - Create a directory for the GIF files on your web server's
+    tree. This directory is linked to the directory in the archie tree
+    that holds the GIF images created daily.  For example, if the stats
+    images that are created reside on ~archie/stats, then you create a
+    directory in your http server's images path. This directory is in
+    turn linked to ~archie/stats.
+
+  - For the HTML file "archstats.html", make the necessary changes to
+    the URL links in the files.  Pay special attention to the "action"
+    field such that it reflects the CGI script's (archie-stats-cgi.pl)
+    location.
+
+  - For the main Archie search page that usually accompanies the main
+    distribution (cgi/html/archie.html), we have added a link to the
+    statistics page right at the bottom of the page.  This link is
+    relative and is commented out. You will have to uncomment it and to
+    decide how to represent it depending on your Web tree setup.
+
+
+  [1] Note on the script that is used to display the stats on web browsers:
+   -------------------------------------------------------------------------
+
+   There is one script that performs the direct CGI interface to the
+   statistical database and it is "archie-stats-cgi.pl". This script should
+   exist on the http server's tree. However, this script calls
+   "archie-display-stats.pl" to display the statistical graphs. This later
+   script resides where the rest of the archie scripts reside (normally in
+   ~archie/scripts).
+
+   If you have perl5, and can install the GD package for perl5
+   (http://www.boutell.com/gd/) then you may want to set the variable
+   "$allow_gifs" in "archie-include.pl" to 1.  This will let you create the
+   GIF files daily/weekly/monthly and will allow you to view them
+   automatically.
+
+   If you don't have perl5 or cannot install the perl library GD.pm then you
+   will have to set the value of "$allow_gifs" in "archie-include.pl" to
+   0. This will result in the display of the statistical histograms in table
+   formats instead of GIF files.
+
+
+Patch Level 4:					Tue Oct 15 21:54:07 EDT 1996
+--------------
+
+
+bin/retrieve_anonftp:		Fixes problem with retrieving ls-lR.gz files
+				Fixes problem with internal error CWD command
+				   not in YYMMDDHHMMSS format.
+				Fixes problem with memory leaks.
+bin/db_reorder:			Faster and handles sub-domains.(see note below)
+bin/insert_anonftp:		Handles sub-domains in ordering the sites
+bin/insert_webindex:		Handles sub-domains in ordering the sites
+bin/host_manage:		Fix a bug with delete site.
+bin/delete_*:			Fixes a bug with the passed paramater -t.
+bin/extern_urls:		Fixes problem with passwd parameter -l and -L
+bin/retrieve_webindex:		Fixes problem with initial path.
+
+pfs/bin/dirsrv:			Translates simple dump reg. expression search
+				to sub-string. (see note below).
+
+scripts/filter_anonftp_unix_bsd: Gets rid of No permission lines
+
+cgi/bin/cgi-client:		Handles empty query strings
+      				Keeps case sensitivity when asking for more
+    				results
+cgi/bin/archie.cgi:		Handles empty results correctly.
+
+Notes:
+------
+
+1- The domains listed in the file etc/domain.order are now more
+general.  You can use sub-domains such as ``bunyip.com'' instead of
+just ``com''.  Although not previously advertised in the manual,
+pseudo-domains can be used as well. Note that there was an error in
+the manual concerning the format of the domain lists.. no leading dot
+should be used. The manual is now fixed.
+
+
+2- Some regular expressions can be converted to other searches, when one
+does not use regular expression appropriately. As sent out on the archie-3 
+list, we came across a client that would send out a request with a regular
+expression term instead of using simple sub string case insensitive search.
+
+Unfortunately, in some cases, we cannot do the translation as shown below
+
+Original search term		Translated to
+
+[Aa][Bb][Cc]			abc
+[Zz][Ii][Pp].[Ee][Xx][Ee]	[Zz][Ii][Pp].[Ee][Xx][Ee] (not translated)
+[Zz][Ii][Pp]\.[Ee][Xx][Ee]	zip.exe
+
+
+
+
+
+
+Patch Level 3:					Sat Sep 14 12:46:24 EDT 1996
+--------------
+
+cgi/bin/cgi-client:		fixes problem with long URLs
+pfs/bin/dirsrv:
+
+bin/*_webindex:			memory leaks fixed
+bin/*_anonftp:			memory leaks fixed
+bin/extern_urls:		fixes problem with duplicate sites
+bin/arcontrol:			properly updates host_db during failures
+bin/host_manage:		Added Record number field
+bin/db_build:			memory leaks fixed
+
+scripts/filter_anonftp_unix_bsd: handles more weird listings...
+
+
+
+Patch Level 2:					Tue Sep  3 13:44:02 EDT 1996
+--------------
+
+bin/insert_*:		Fixed problem with creation of new Stridx files
+ 			in the respective databases.
+
+			File pointer leak.
+
+etc/ardomains.cf: 	Added .net and .org domains
+
+
+
+
+Patch Level 1:					Fri Aug 23 00:28:55 EDT 1996
+--------------
+
+cgi/bin/cgi-client:	Fixed search problem with long filenames
+pfs/bin/dirsrv:		Fixed search problem with long filenames
+
+bin/update_anonftp:	Fixed problem with -o switch
+
+bin/insert_anonftp:	Fixed some information messages in non -v mode
+bin/insert_webindex:	Fixed some information messages in non -v mode

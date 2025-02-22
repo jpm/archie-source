@@ -1,0 +1,98 @@
+#!/bin/sh
+#
+#  Untar a file safely by making backup of the files your are about to 
+#  overwrite.
+#
+#  1994 (c) Regents of McGill University, School of Computer Science.
+#           by Luc Boulianne (lucb@cs.mcgill.ca)
+#
+usage () {
+        echo "Usage $0 [-v] [-d directory] tarfile.gz"
+	echo "Untar files safely by making backup of the files you"
+        echo "are about to overwrite."
+	echo "options: "
+	echo "	[-d] cd to this directory before untarring"
+	echo "	[-v] set debugging on"
+	echo "	[-h] this help info"
+	echo ""
+	exit 2
+}
+
+# parse the command line arguments:
+#
+while [ $# -gt 1 ] ; do
+  case $1 in
+    -d) shift; directory=$1;;
+    -v) debug="y" ;;
+    -h) usage;;			# call the usage funtion
+    *) 				# Catch anything that doesn't match the 
+				# previous flags
+    	echo "Unknown option [$1]";
+	usage;;
+  esac
+  shift
+done
+
+umask 000
+MV=/bin/mv
+TAR=tar
+GZIP=gzip
+MIDX=9;
+
+# For solaris ...
+PATH=/usr/ucb:$PATH
+
+echo "Untarring $1 in the ${directory:=.} directory.";
+
+index() 
+{
+        i=1;
+        while [ $i -le ${1:-$MIDX} ] ; do
+                echo -n "$i ";
+                i=`expr $i + 1`;
+        done
+}
+
+rindex() 
+{
+        i=${1:-$MIDX};
+        while [ $i -gt 0 ] ; do
+                echo -n "$i ";
+                i=`expr $i - 1`;
+        done
+}
+
+rotate()
+{
+        fn=$1;shift;
+
+        for n in $* ; do
+           src=$fn.`expr $n - 1`
+           dest=$fn.$n
+           test -f $src && $MV -f $src $dest && echo "  - $MV -f $src  $dest"
+        done
+        test -f $fn && $MV -f $fn $fn.0 && echo "  - $MV -f $fn $fn.0"
+}
+
+idx=`rindex`;
+
+if [ x${debug:-x} = yx ] ; then
+	set -x;
+fi
+
+echo ""
+echo "Uncompressing the tar file - this will take a moment..."
+echo ""
+echo "Note: Please do not interrupt while files are being rotated."
+echo "      The simple script, \`unrotate' has been supplied to unrotate files in"
+echo "      a given directory, should something go wrong."
+echo ""
+
+$GZIP -d < $1 | $TAR -tf - | while read file 
+do
+	cd $directory
+        echo $file
+        test -f $file && rotate $file $idx && echo "Rotated old file $file"
+done
+
+$GZIP -d < $1 | (cd $directory ; $TAR -xvpf - )
